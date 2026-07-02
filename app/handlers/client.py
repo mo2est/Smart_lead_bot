@@ -28,8 +28,7 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
 @router.callback_query(F.data == "start_lead")
 async def start_lead(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(LeadForm.name)
-    await callback.message.edit_text("Как вас зовут?")
-    await callback.message.answer("Введите ваше имя:", reply_markup=cancel_kb)
+    await callback.message.edit_text("Введите ваше имя:", reply_markup=cancel_kb)
     await callback.answer()
 
 
