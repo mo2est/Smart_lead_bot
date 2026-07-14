@@ -233,6 +233,7 @@ After=network.target
 [Service]
 User=botuser
 WorkingDirectory=/home/botuser/Smart_lead_bot
+EnvironmentFile=/home/botuser/Smart_lead_bot/.env
 ExecStart=/home/botuser/Smart_lead_bot/venv/bin/python main.py
 Restart=always
 RestartSec=5
@@ -279,6 +280,7 @@ services:
 ```
 
 ```bash
+touch leads.db   # обязательно ДО первого запуска: иначе Docker создаст каталог leads.db вместо файла
 docker compose up -d
 docker compose logs -f
 ```
@@ -437,9 +439,9 @@ cp leads.db leads_backup_$(date +%Y%m%d).db
 ```bash
 crontab -e
 ```
-Добавьте строку:
+Добавьте строку (используется `sqlite3 .backup` — безопасно для базы, в которую в этот момент идёт запись, в отличие от `cp`):
 ```
-0 3 * * * cp /home/botuser/Smart_lead_bot/leads.db /home/botuser/backups/leads_$(date +\%Y\%m\%d).db
+0 3 * * * sqlite3 /home/botuser/Smart_lead_bot/leads.db ".backup /home/botuser/backups/leads_$(date +\%Y\%m\%d).db"
 ```
 
 ### Быстрые команды systemd

@@ -1,3 +1,5 @@
+import html
+import logging
 import re
 
 from aiogram import F, Router
@@ -9,6 +11,8 @@ from app.config import config
 from app.db.requests import add_lead
 from app.handlers.states import LeadForm
 from app.keyboards.keyboards import cancel_kb, phone_request_kb, remove_kb, start_kb
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
@@ -113,14 +117,16 @@ async def process_description(message: Message, state: FSMContext) -> None:
         "Telegram: @{username} (id: {user_id})"
     ).format(
         id=lead.id,
-        name=name,
-        phone=phone,
-        description=description,
-        username=message.from_user.username or "—",
+        name=html.escape(name),
+        phone=html.escape(phone),
+        description=html.escape(description),
+        username=html.escape(message.from_user.username or "—"),
         user_id=message.from_user.id,
     )
     for admin_id in config.admin_ids:
         try:
             await message.bot.send_message(admin_id, admin_text)
         except Exception:
-            pass
+            logger.exception(
+                "Failed to notify admin %s about lead #%s", admin_id, lead.id
+            )

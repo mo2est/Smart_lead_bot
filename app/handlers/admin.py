@@ -1,3 +1,5 @@
+import html
+
 from aiogram import Router
 from aiogram.filters import Command
 
@@ -19,8 +21,8 @@ async def cmd_admin(message) -> None:
     for lead in leads:
         lines.append(
             f"#{lead.id} | {lead.created_at:%d.%m.%Y %H:%M}\n"
-            f"👤 {lead.name} | 📱 {lead.phone}\n"
-            f"💬 {lead.description}\n"
+            f"👤 {html.escape(lead.name)} | 📱 {html.escape(lead.phone)}\n"
+            f"💬 {html.escape(lead.description)}\n"
         )
     await message.answer("\n".join(lines))
 
