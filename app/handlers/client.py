@@ -3,6 +3,7 @@ import logging
 import re
 
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
@@ -19,8 +20,25 @@ router = Router()
 PHONE_RE = re.compile(r"^\+?\d[\d\s\-()]{6,20}$")
 
 
+async def _remove_prompt_kb(message: Message, state: FSMContext) -> None:
+    """Remove the inline keyboard from the previous bot prompt so stale
+    cancel buttons can't be pressed after the flow has moved on."""
+    data = await state.get_data()
+    msg_id = data.get("prompt_msg_id")
+    if not msg_id:
+        return
+    try:
+        await message.bot.edit_message_reply_markup(
+            chat_id=message.chat.id, message_id=msg_id, reply_markup=None
+        )
+    except TelegramBadRequest:
+        pass
+    await state.update_data(prompt_msg_id=None)
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext) -> None:
+    await _remove_prompt_kb(message, state)
     await state.clear()
     await message.answer(
         "👋 Здравствуйте! Я бот для приёма заявок.\n\n"
@@ -32,7 +50,8 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
 @router.callback_query(F.data == "start_lead")
 async def start_lead(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(LeadForm.name)
-    await callback.message.edit_text("Введите ваше имя:", reply_markup=cancel_kb)
+    msg = await callback.message.edit_text("Введите ваше имя:", reply_markup=cancel_kb)
+    await state.update_data(prompt_msg_id=msg.message_id)
     await callback.answer()
 
 
@@ -47,8 +66,11 @@ async def cancel_handler(callback: CallbackQuery, state: FSMContext) -> None:
 @router.message(LeadForm.name)
 async def process_name(message: Message, state: FSMContext) -> None:
     if not message.text or len(message.text.strip()) < 2:
-        await message.answer("Пожалуйста, введите корректное имя.", reply_markup=cancel_kb)
+        await _remove_prompt_kb(message, state)
+        msg = await message.answer("Пожалуйста, введите корректное имя.", reply_markup=cancel_kb)
+        await state.update_data(prompt_msg_id=msg.message_id)
         return
+    await _remove_prompt_kb(message, state)
     await state.update_data(name=message.text.strip())
     await state.set_state(LeadForm.phone)
     await message.answer(
@@ -61,10 +83,11 @@ async def process_name(message: Message, state: FSMContext) -> None:
 async def process_phone_contact(message: Message, state: FSMContext) -> None:
     await state.update_data(phone=message.contact.phone_number)
     await state.set_state(LeadForm.description)
-    await message.answer(
+    msg = await message.answer(
         "Опишите вашу задачу или вопрос:",
         reply_markup=cancel_kb,
     )
+    await state.update_data(prompt_msg_id=msg.message_id)
 
 
 @router.message(LeadForm.phone, F.text)
@@ -78,18 +101,22 @@ async def process_phone_text(message: Message, state: FSMContext) -> None:
         return
     await state.update_data(phone=phone)
     await state.set_state(LeadForm.description)
-    await message.answer(
+    msg = await message.answer(
         "Опишите вашу задачу или вопрос:",
         reply_markup=cancel_kb,
     )
+    await state.update_data(prompt_msg_id=msg.message_id)
 
 
 @router.message(LeadForm.description)
 async def process_description(message: Message, state: FSMContext) -> None:
     if not message.text or len(message.text.strip()) < 3:
-        await message.answer("Пожалуйста, опишите задачу текстом.", reply_markup=cancel_kb)
+        await _remove_prompt_kb(message, state)
+        msg = await message.answer("Пожалуйста, опишите задачу текстом.", reply_markup=cancel_kb)
+        await state.update_data(prompt_msg_id=msg.message_id)
         return
 
+    await _remove_prompt_kb(message, state)
     data = await state.get_data()
     name = data["name"]
     phone = data["phone"]
